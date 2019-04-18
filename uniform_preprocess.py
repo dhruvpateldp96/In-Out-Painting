@@ -20,7 +20,7 @@ from skimage.color import rgb2gray
 import numpy as np
 from matplotlib import pyplot as plt
 import cv2
-from keras.callbacks import EarlyStopping, ModelCheckpoint
+from keras.callbacks import EarlyStopping, ModelCheckpoint, TensorBoard
 
 
 TRAIN_DATASET_PATH='/home/dhruv/Allprojects/NIH-XRAY/Train/'
@@ -32,7 +32,7 @@ BATCH_SIZE    = 10  # try reducing batch size or freeze more layers if your GPU 
 FREEZE_LAYERS = 2  # freeze the first this many layers for training
 NUM_EPOCHS    = 3
 WEIGHTS_FINAL = 'model-cropped-final.h5'
-
+NUMBER=0
 
 def searchForPatches(filename,lines,index):
 
@@ -46,7 +46,7 @@ def searchForPatches(filename,lines,index):
 			# print('Returning!!',filename)
 			return fields
 
-	fields=[0,0,155,155]		
+	fields=['',0,0,155,155]		
 	return fields
 			
 def random_crop(img, random_crop_size, filename,index,lines):
@@ -68,22 +68,24 @@ def random_crop(img, random_crop_size, filename,index,lines):
     dy=0
 
     # if(filename == fields[0]):
-    try:
-	    x=int(fields[1])
-	    y=int(fields[2])
-	    dx=int(fields[3])
-	    dy=int(fields[4])
-	    img=img[y:(y+dy), x:(x+dx), :]
-	    img = cv2.resize(img,(224,224))
-	    img=img/255.0
-    except IndexError:   
-        print("lolololol")
+
+    x=int(fields[1])
+    y=int(fields[2])
+    dx=int(fields[3])
+    dy=int(fields[4])
+    img=img[y:(y+dy), x:(x+dx), :]
+    img = cv2.resize(img,(224,224))
+    img=img/255.0
+
+
     # print(x,y,dx,dy)
     # plt.imshow(img)
     # plt.show()
     # plt.imshow(img)
     # plt.show()
-
+    # print(img)
+    # print('numbers=',NUMBER)
+    # NUMBER=NUMBER+1
     return img
 
 
@@ -116,7 +118,7 @@ def crop_generator(batches, crop_length,lines):#224
     while True:
 	    batch_x= next(batches)
 	        
-	    print('batch_shape=',batch_x.shape)
+	    # print('batch_shape=',batch_x.shape)
 	        # print('batch_names=',batch_x.filenames)
 	    batch_crops_inp = np.zeros((4,batch_x.shape[0], 224, 224,3))#224
 	        # batch_crops_tar = np.zeros((batch_x.shape[0], 224, 224,3))
@@ -169,7 +171,10 @@ def main():
 	# 	lines = f.readlines()
 
 	with open('/home/dhruv/Allprojects/Feature-Learning-for-Disease-Classification/PatchFiles/train_sml.txt') as f1:
-		lines1 = f1.readlines()	
+		lines1 = f1.readlines()
+
+	with open('/home/dhruv/Allprojects/Feature-Learning-for-Disease-Classification/PatchFiles/validation_sml.txt') as f2:
+		lines2 = f2.readlines()			
 
 	# print((lines1))
 	
@@ -188,7 +193,7 @@ def main():
         	                                          batch_size=BATCH_SIZE)
 	
 	train_crops_orig = crop_generator(train_batches, CROP_LENGTH,lines1) #224
-	valid_crops_orig = crop_generator(valid_batches, CROP_LENGTH,lines1)
+	valid_crops_orig = crop_generator(valid_batches, CROP_LENGTH,lines2)
 
 
 	# batch_x_random_crop, batch_y_targeted_crop = next(train_crops)
@@ -214,15 +219,17 @@ def main():
 	# print('1 channel y',train_crops_1_ch.shape)
 	# print(in_painted_x.shape)
 	# print(train_crops_1_ch.shape)
+
 	callbacks = [EarlyStopping(monitor='val_loss', patience=2),
-	             ModelCheckpoint(filepath='best_model.h5', monitor='val_loss', save_best_only=True)]
+	             ModelCheckpoint(filepath='best_model.h5', monitor='val_loss', save_best_only=True),
+	             TensorBoard(log_dir='./logs', histogram_freq=0, write_graph=True, write_images=True)]
 	model.fit_generator(generator=train_crops_orig,
                     steps_per_epoch=15,
                     validation_data=valid_crops_orig,
                     callbacks=callbacks,
                     validation_steps=15,
                     epochs=15)
-	# model.save('outpaint.h5')
+	model.save('outpaint.h5')
 
 def out_painting_mask(batch_x):
 
